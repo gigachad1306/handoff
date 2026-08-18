@@ -46,12 +46,6 @@ http://localhost:8000
 For deployment, use HTTPS. WebRTC functionality and browser security policies
 are best supported from a secure origin.
 
-## Deploy with GitHub Pages
-
-1. Create a GitHub repository, for example `handoff`.
-2. Upload `index.html` and this `README.md`.
-3. In **Settings → Pages**, select the deployment source.
-4. Open the generated HTTPS GitHub Pages URL in both browsers.
 
 ## Security notes
 
