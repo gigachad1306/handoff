@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Handoff — direct file transfer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0B1220;
+    --surface: #121B2E;
+    --surface-2: #182342;
+    --line: #26314D;
+    --text: #E7ECF3;
+    --muted: #8291AA;
+    --signal: #5EEAD4;
+    --signal-dim: #2C5A55;
+    --amber: #F5B841;
+    --danger: #F2545B;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Source Sans 3', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding:56px 24px 80px;
+  }
+  header{
+    margin-bottom:48px;
+  }
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--signal);
+    margin:0 0 14px;
+  }
+  h1{
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:clamp(28px,5vw,40px);
+    line-height:1.15;
+    margin:0 0 14px;
+    letter-spacing:-0.01em;
+  }
+  header p{
+    color:var(--muted);
+    font-size:16px;
+    line-height:1.6;
+    max-width:52ch;
+    margin:0;
+  }
+
+  /* Signature: handshake diagram */
+  .handshake{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:0;
+    margin:44px 0 48px;
+    position:relative;
+  }
+  .node{
+    width:64px;height:64px;
+    border-radius:50%;
+    border:1.5px solid var(--line);
+    background:var(--surface);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--muted);
+    flex-shrink:0;
+    transition:border-color .4s ease, color .4s ease;
+    z-index:2;
+  }
+  .node.active{border-color:var(--signal); color:var(--signal);}
+  .link{
+    flex:1;
+    max-width:260px;
+    height:1.5px;
+    background:repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px);
+    position:relative;
+    margin:0 -1px;
+  }
+  .link.live{
+    background:var(--signal);
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{opacity:.5;}
+    50%{opacity:1;}
+  }
+  .no-server{
+    position:absolute;
+    top:-30px;
+    left:50%;
+    transform:translateX(-50%);
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:0.06em;
+    color:var(--muted);
+    white-space:nowrap;
+  }
+  .no-server::before{
+    content:'⌀ ';
+    color:var(--danger);
+  }
+
+  section.panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:28px;
+    margin-bottom:20px;
+  }
+  .panel h2{
+    font-family:var(--mono);
+    font-size:14px;
+    letter-spacing:0.04em;
+    margin:0 0 6px;
+    color:var(--text);
+  }
+  .panel .sub{
+    color:var(--muted);
+    font-size:13.5px;
+    margin:0 0 20px;
+    line-height:1.5;
+  }
+  .step{
+    display:flex;
+    gap:14px;
+    margin-bottom:18px;
+  }
+  .step:last-child{margin-bottom:0;}
+  .step-num{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--bg);
+    background:var(--signal);
+    width:22px;height:22px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+    margin-top:2px;
+  }
+  .step-body{flex:1;min-width:0;}
+  .step-body label{
+    display:block;
+    font-size:13.5px;
+    color:var(--text);
+    margin-bottom:8px;
+    font-weight:600;
+  }
+
+  textarea{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--signal);
+    font-family:var(--mono);
+    font-size:11px;
+    padding:10px 12px;
+    resize:vertical;
+    min-height:64px;
+    line-height:1.5;
+  }
+  textarea:focus{outline:2px solid var(--signal); outline-offset:1px;}
+  textarea::placeholder{color:var(--muted); font-family:var(--sans);}
+
+  button{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:13.5px;
+    border-radius:6px;
+    padding:10px 16px;
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    color:var(--text);
+    cursor:pointer;
+    transition:border-color .15s ease, transform .1s ease;
+  }
+  button:hover{border-color:var(--signal);}
+  button:active{transform:scale(0.98);}
+  button:focus-visible{outline:2px solid var(--signal); outline-offset:2px;}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  button.primary{
+    background:var(--signal);
+    color:var(--bg);
+    border-color:var(--signal);
+  }
+  button.primary:hover{background:#7FF3E0;}
+  .row{display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;}
+
+  .role-choice{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  .role-btn{
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:20px;
+    text-align:left;
+    cursor:pointer;
+  }
+  .role-btn:hover{border-color:var(--signal);}
+  .role-btn .rb-title{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--signal);
+    margin-bottom:6px;
+  }
+  .role-btn .rb-desc{color:var(--muted); font-size:13px; line-height:1.5;}
+
+  .status{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--muted);
+    margin-top:14px;
+  }
+  .status.ok{color:var(--signal);}
+  .status.err{color:var(--danger);}
+
+  .dropzone{
+    border:1.5px dashed var(--line);
+    border-radius:8px;
+    padding:36px 20px;
+    text-align:center;
+    color:var(--muted);
+    font-size:14px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .dropzone.drag{border-color:var(--signal); background:rgba(94,234,212,0.05); color:var(--text);}
+  .dropzone strong{color:var(--text);}
+  input[type=file]{display:none;}
+
+  .transfer-item{
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 16px;
+    margin-top:12px;
+  }
+  .transfer-item .ti-top{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13.5px;margin-bottom:8px;
+  }
+  .ti-name{color:var(--text); font-weight:600; word-break:break-all;}
+  .ti-meta{color:var(--muted); font-family:var(--mono); font-size:11px; white-space:nowrap; margin-left:12px;}
+  .bar{
+    height:5px;
+    background:var(--line);
+    border-radius:3px;
+    overflow:hidden;
+  }
+  .bar-fill{
+    height:100%;
+    background:var(--signal);
+    width:0%;
+    transition:width .1s linear;
+  }
+  .ti-link{
+    display:inline-block;
+    margin-top:10px;
+    font-size:13px;
+    color:var(--signal);
+    text-decoration:none;
+    font-weight:600;
+  }
+  .ti-link:hover{text-decoration:underline;}
+
+  .footnote{
+    margin-top:40px;
+    color:var(--muted);
+    font-size:12.5px;
+    line-height:1.7;
+    border-top:1px solid var(--line);
+    padding-top:20px;
+  }
+  .hidden{display:none !important;}
+
+  @media (prefers-reduced-motion: reduce){
+    .link.live{animation:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Peer to peer &middot; nothing stored, nothing routed</p>
+    <h1>Handoff</h1>
+    <p>A direct line between two browsers. Files move straight from one machine to the other over an encrypted connection — no upload, no server storage, no account. If you close this tab, nothing of yours remains anywhere.</p>
+  </header>
+
+  <div class="handshake">
+    <span class="no-server">no server in between</span>
+    <div class="node" id="nodeA">YOU</div>
+    <div class="link" id="linkEl"></div>
+    <div class="node" id="nodeB">THEM</div>
+  </div>
+
+  <!-- ROLE CHOICE -->
+  <section class="panel" id="roleChoice">
+    <h2>01 · Start a connection</h2>
+    <p class="sub">One of you creates the connection, the other joins it. It doesn't matter who does which — both of you can send files once you're connected.</p>
+    <div class="role-choice">
+      <button class="role-btn" id="btnCreate">
+        <div class="rb-title">Create connection</div>
+        <div class="rb-desc">Generate a connection code to send to the other person.</div>
+      </button>
+      <button class="role-btn" id="btnJoin">
+        <div class="rb-title">Join connection</div>
+        <div class="rb-desc">You've received a connection code from someone else.</div>
+      </button>
+    </div>
+  </section>
+
+  <!-- OFFERER FLOW -->
+  <section class="panel hidden" id="panelOfferer">
+    <h2>Connection code</h2>
+    <p class="sub">Send this whole block to the other person, over any channel you already trust — chat, email, whatever's at hand.</p>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <label>Your code</label>
+        <textarea id="offerOut" readonly placeholder="Generating..."></textarea>
+        <div class="row">
+          <button id="copyOffer">Copy code</button>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <label>Paste their reply code here</label>
+        <textarea id="answerIn" placeholder="Paste the reply code you receive back..."></textarea>
+        <div class="row">
+          <button class="primary" id="finishConnect">Connect</button>
+        </div>
+      </div>
+    </div>
+    <p class="status" id="offererStatus"></p>
+  </section>
+
+  <!-- JOINER FLOW -->
+  <section class="panel hidden" id="panelJoiner">
+    <h2>Join with a code</h2>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <label>Paste the connection code you received</label>
+        <textarea id="offerIn" placeholder="Paste code here..."></textarea>
+        <div class="row">
+          <button class="primary" id="genAnswer">Generate reply code</button>
+        </div>
+      </div>
+    </div>
+    <div class="step" id="answerStep" style="display:none;">
+      <div class="step-num">2</div>
+      <div class="step-body">
+        <label>Send this reply code back to them</label>
+        <textarea id="answerOut" readonly></textarea>
+        <div class="row">
+          <button id="copyAnswer">Copy reply code</button>
+        </div>
+      </div>
+    </div>
+    <p class="status" id="joinerStatus"></p>
+  </section>
+
+  <!-- TRANSFER PANEL -->
+  <section class="panel hidden" id="panelTransfer">
+    <h2>02 · Send a file</h2>
+    <p class="sub">Connected directly. Drop a file below — it streams straight to the other side.</p>
+    <div class="dropzone" id="dropzone">
+      <div><strong>Drop a file here</strong> or click to choose one</div>
+    </div>
+    <input type="file" id="fileInput">
+    <div id="transferList"></div>
+  </section>
+
+  <p class="footnote">Handoff uses WebRTC's data channel to move bytes directly between two browsers. A public STUN server only helps the two browsers discover each other's network address — your file never passes through it or any other server. Closing either tab ends the session completely.</p>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const nodeA = $('nodeA'), nodeB = $('nodeB'), linkEl = $('linkEl');
+  const CHUNK_SIZE = 16 * 1024;
+
+  let pc = null, dc = null;
+  let incoming = null; // {name, size, type, received, chunks}
+
+  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+  function waitIceComplete(peer){
+    return new Promise(resolve => {
+      if (peer.iceGatheringState === 'complete') return resolve();
+      const check = () => {
+        if (peer.iceGatheringState === 'complete'){
+          peer.removeEventListener('icegatheringstatechange', check);
+          resolve();
+        }
+      };
+      peer.addEventListener('icegatheringstatechange', check);
+    });
+  }
+
+  function setConnected(){
+    nodeA.classList.add('active');
+    nodeB.classList.add('active');
+    linkEl.classList.add('live');
+    $('panelOfferer').classList.add('hidden');
+    $('panelJoiner').classList.add('hidden');
+    $('panelTransfer').classList.remove('hidden');
+  }
+
+  function setupChannel(channel){
+    dc = channel;
+    dc.binaryType = 'arraybuffer';
+    dc.onopen = () => setConnected();
+    dc.onclose = () => {
+      linkEl.classList.remove('live');
+      nodeA.classList.remove('active');
+      nodeB.classList.remove('active');
+    };
+    dc.onmessage = onMessage;
+  }
+
+  function onMessage(e){
+    if (typeof e.data === 'string'){
+      const meta = JSON.parse(e.data);
+      if (meta.type === 'meta'){
+        incoming = { name: meta.name, size: meta.size, mime: meta.mime, received: 0, chunks: [] };
+        addTransferRow(meta.name, meta.size, 'incoming');
+      } else if (meta.type === 'done'){
+        finishIncoming();
+      }
+      return;
+    }
+    if (incoming){
+      incoming.chunks.push(e.data);
+      incoming.received += e.data.byteLength;
+      updateProgress(incoming.name, incoming.received, incoming.size);
+    }
+  }
+
+  function finishIncoming(){
+    const blob = new Blob(incoming.chunks, { type: incoming.mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const row = document.getElementById('row-' + cssSafe(incoming.name));
+    if (row){
+      const link = document.createElement('a');
+      link.className = 'ti-link';
+      link.href = url;
+      link.download = incoming.name;
+      link.textContent = 'Download ' + incoming.name;
+      row.appendChild(link);
+      updateProgress(incoming.name, incoming.size, incoming.size);
+    }
+    incoming = null;
+  }
+
+  function cssSafe(name){
+    return name.replace(/[^a-z0-9]/gi, '_');
+  }
+
+  function addTransferRow(name, size, direction){
+    const list = $('transferList');
+    const id = 'row-' + cssSafe(name);
+    let row = document.getElementById(id);
+    if (row) row.remove();
+    row = document.createElement('div');
+    row.className = 'transfer-item';
+    row.id = id;
+    row.innerHTML = `
+      <div class="ti-top">
+        <span class="ti-name">${direction === 'incoming' ? '⭢ ' : '⭠ '}${escapeHtml(name)}</span>
+        <span class="ti-meta">${formatBytes(size)}</span>
+      </div>
+      <div class="bar"><div class="bar-fill" id="fill-${cssSafe(name)}"></div></div>
+    `;
+    list.prepend(row);
+  }
+
+  function updateProgress(name, sent, total){
+    const fill = document.getElementById('fill-' + cssSafe(name));
+    if (fill) fill.style.width = Math.min(100, (sent / total) * 100) + '%';
+  }
+
+  function escapeHtml(s){
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function formatBytes(n){
+    if (n < 1024) return n + ' B';
+    if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+    return (n/1024/1024).toFixed(1) + ' MB';
+  }
+
+  async function sendFile(file){
+    addTransferRow(file.name, file.size, 'outgoing');
+    dc.send(JSON.stringify({ type: 'meta', name: file.name, size: file.size, mime: file.type }));
+    let offset = 0;
+    while (offset < file.size){
+      const slice = file.slice(offset, offset + CHUNK_SIZE);
+      const buf = await slice.arrayBuffer();
+      // simple backpressure
+      while (dc.bufferedAmount > 8 * CHUNK_SIZE){
+        await new Promise(r => setTimeout(r, 10));
+      }
+      dc.send(buf);
+      offset += buf.byteLength;
+      updateProgress(file.name, offset, file.size);
+    }
+    dc.send(JSON.stringify({ type: 'done' }));
+  }
+
+  // ---- Role: create connection (offerer) ----
+  $('btnCreate').addEventListener('click', async () => {
+    $('roleChoice').classList.add('hidden');
+    $('panelOfferer').classList.remove('hidden');
+    pc = new RTCPeerConnection(rtcConfig);
+    setupChannel(pc.createDataChannel('handoff'));
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitIceComplete(pc);
+    $('offerOut').value = JSON.stringify(pc.localDescription);
+  });
+
+  $('copyOffer').addEventListener('click', () => {
+    $('offerOut').select();
+    navigator.clipboard.writeText($('offerOut').value);
+  });
+
+  $('finishConnect').addEventListener('click', async () => {
+    const status = $('offererStatus');
+    try {
+      const answer = JSON.parse($('answerIn').value.trim());
+      await pc.setRemoteDescription(answer);
+      status.textContent = 'Connecting...';
+      status.className = 'status';
+    } catch (err){
+      status.textContent = 'That code didn\'t parse — check it was pasted in full.';
+      status.className = 'status err';
+    }
+  });
+
+  // ---- Role: join connection (answerer) ----
+  $('btnJoin').addEventListener('click', () => {
+    $('roleChoice').classList.add('hidden');
+    $('panelJoiner').classList.remove('hidden');
+  });
+
+  $('genAnswer').addEventListener('click', async () => {
+    const status = $('joinerStatus');
+    try {
+      const offer = JSON.parse($('offerIn').value.trim());
+      pc = new RTCPeerConnection(rtcConfig);
+      pc.ondatachannel = (e) => setupChannel(e.channel);
+      await pc.setRemoteDescription(offer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await waitIceComplete(pc);
+      $('answerOut').value = JSON.stringify(pc.localDescription);
+      $('answerStep').style.display = 'flex';
+      status.textContent = 'Send the reply code back — connecting once they confirm.';
+      status.className = 'status';
+    } catch (err){
+      status.textContent = 'That code didn\'t parse — check it was pasted in full.';
+      status.className = 'status err';
+    }
+  });
+
+  $('copyAnswer').addEventListener('click', () => {
+    $('answerOut').select();
+    navigator.clipboard.writeText($('answerOut').value);
+  });
+
+  // ---- File sending ----
+  const dropzone = $('dropzone');
+  const fileInput = $('fileInput');
+  dropzone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) sendFile(fileInput.files[0]);
+  });
+  ['dragenter','dragover'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add('drag'); })
+  );
+  ['dragleave','drop'].forEach(evt =>
+    dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove('drag'); })
+  );
+  dropzone.addEventListener('drop', e => {
+    const file = e.dataTransfer.files[0];
+    if (file && dc && dc.readyState === 'open') sendFile(file);
+  });
+})();
+</script>
+</body>
+</html>
